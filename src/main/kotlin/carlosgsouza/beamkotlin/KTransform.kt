@@ -1,6 +1,7 @@
 package carlosgsouza.beamkotlin
 
 import org.apache.beam.sdk.transforms.*
+import org.apache.beam.sdk.transforms.Sample.any
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.TypeDescriptor
@@ -27,4 +28,19 @@ fun <I, O> PCollection<I>.map(into: TypeDescriptor<O>, name: String? = null, via
         .via<I>(SerializableFunction { via(it) })
 
     return if (name != null) apply(name, mapElements) else apply(mapElements)
+}
+
+fun <V, K> PCollection<V>.withKeys(of: TypeDescriptor<K>, fn: (V) -> K): PCollection<KV<K, V>> {
+    val serializableFunction = object : SerializableFunction<V, K> {
+        override fun apply(value: V): K = fn(value)
+    }
+    return this.apply(WithKeys.of(serializableFunction).withKeyType(of))
+}
+
+fun <T> PCollection<T>.sample(any: Long) : PCollection<T> {
+    return this.apply(Sample.any(any))
+}
+
+fun <T> PCollection<T>.sample(any: Int) : PCollection<T> {
+    return sample(any.toLong())
 }

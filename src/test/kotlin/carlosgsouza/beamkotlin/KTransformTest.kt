@@ -5,6 +5,8 @@ import org.apache.beam.sdk.testing.PAssert
 import org.apache.beam.sdk.testing.TestPipeline
 import org.apache.beam.sdk.transforms.Count.globally
 import org.apache.beam.sdk.transforms.Create
+import org.apache.beam.sdk.transforms.Sample
+import org.apache.beam.sdk.transforms.Sample.any
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.TypeDescriptors.*
 import org.junit.After
@@ -75,13 +77,21 @@ internal class KTransformTest {
     }
 
     @Test
+    fun testSample() {
+        val input = pipeline.apply(Create.of((1 .. 100).toList()))
+        val result = input.sample(any = 10).count(globally())
+
+        PAssert.that(result).containsInAnyOrder(10L)
+    }
+
+    @Test
     fun testChain() {
         val input = pipeline.apply(Create.of((1..100).toList()))
 
         val result = input
             .filter { it % 2 == 0 }
             .map(name = "Element+1000", into = integers()) { it + 1000 }
-            .map(name = "KV(LastDigit, Element)", into = kvs(integers(), integers())) { KV.of(it % 10, it) }
+            .withKeys(of = integers()) { it % 10 }
             .groupByKey()
             .count(globally())
 
