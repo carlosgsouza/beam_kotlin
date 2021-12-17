@@ -12,9 +12,10 @@ repositories {
 }
 
 dependencies {
+    implementation("org.apache.beam:beam-sdks-java-core:2.34.0")
+    implementation("org.apache.beam:beam-runners-direct-java:2.34.0")
+
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.apache.beam:beam-sdks-java-core:2.34.0")
-    testImplementation("org.apache.beam:beam-runners-direct-java:2.34.0")
     testImplementation("org.hamcrest:hamcrest:2.2")
 
 }

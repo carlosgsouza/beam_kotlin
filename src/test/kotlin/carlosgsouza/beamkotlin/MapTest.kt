@@ -3,19 +3,14 @@ package carlosgsouza.beamkotlin
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.testing.PAssert
 import org.apache.beam.sdk.testing.TestPipeline
-import org.apache.beam.sdk.transforms.*
 import org.apache.beam.sdk.transforms.Count.globally
+import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.KV
-import org.apache.beam.sdk.values.PCollection
-import org.apache.beam.sdk.values.TypeDescriptor
-import org.apache.beam.sdk.values.TypeDescriptors
-import org.apache.beam.sdk.values.TypeDescriptors.integers
+import org.apache.beam.sdk.values.TypeDescriptors.*
 import org.junit.After
-import org.junit.Rule
 import org.junit.Test
 
-
-internal class MapTest {
+internal class KTransformTest {
 
     val pipeline: Pipeline = TestPipeline.create().enableAbandonedNodeEnforcement(false)
 
@@ -28,7 +23,7 @@ internal class MapTest {
     fun testMap() {
         val input = pipeline.apply(Create.of(listOf(1, 2, 3)))
 
-        val result = input.map(into = integers()) {2 * it}
+        val result = input.map(into = integers()) { 2 * it }
 
         PAssert.that(result).containsInAnyOrder(2, 4, 6)
     }
@@ -37,7 +32,7 @@ internal class MapTest {
     fun testFilter() {
         val input = pipeline.apply(Create.of(listOf(1, 2, 3)))
 
-        val result = input.filter { it % 2 == 1}
+        val result = input.filter { it % 2 == 1 }
 
         PAssert.that(result).containsInAnyOrder(1, 3)
     }
@@ -51,51 +46,47 @@ internal class MapTest {
 
     @Test
     fun testGroupByKey() {
-        val input = pipeline.apply(Create.of(listOf(
-//            KV.of("a", "Australia"),
-            KV.of("a", "Albania"),
-            KV.of("b", "Brazil"),
-            KV.of("c", "Canada"),
-//            KV.of("c", "Chile"),
-        )))
+        val input = pipeline.apply(
+            Create.of(
+                listOf(
+                    KV.of("a", "Australia"),
+                    KV.of("a", "Albania"),
+                    KV.of("b", "Brazil"),
+                    KV.of("c", "Canada"),
+                    KV.of("c", "Chile"),
+                )
+            )
+        )
 
-        val result = input.groupByKey()
+        val result = input
+            .groupByKey()
+            // We convert the groupByKey result to a string built from the sorted values so we don't need to worry about
+            // the order of the values Iterable in the assertion below.
+            .map(into = strings()) {
+                val countryCSV = it.value.toList().sorted().joinToString(",")
+                "${it.key}: $countryCSV"
+            }
 
-        // TODO: Test multiple values in iterable once I understand how to accept values in any order. Maybe use
-        // PAssert.satisfy?
         PAssert.that(result).containsInAnyOrder(
-            KV.of("a", listOf("Albania")),
-            KV.of("b", listOf("Brazil")),
-            KV.of("c", listOf("Canada"))
+            "a: Albania,Australia",
+            "b: Brazil",
+            "c: Canada,Chile"
         )
     }
 
     @Test
     fun testChain() {
-        val input = pipeline.apply(Create.of(listOf(1, 2, 3)))
+        val input = pipeline.apply(Create.of((1..100).toList()))
 
-        val result = input.map(into = integers()) { it + 1 }.filter { it % 2 == 0 }.count(globally())
+        val result = input
+            .filter { it % 2 == 0 }
+            .map(name = "Element+1000", into = integers()) { it + 1000 }
+            .map(name = "KV(LastDigit, Element)", into = kvs(integers(), integers())) { KV.of(it % 10, it) }
+            .groupByKey()
+            .count(globally())
 
-        PAssert.that(result).containsInAnyOrder(2)
+        PAssert.that(result).containsInAnyOrder(5)
     }
 
-    fun <K, V> PCollection<KV<K, V>>.groupByKey(): PCollection<KV<K, Iterable<V>>> {
-        return this.apply(GroupByKey.create())
-    }
 
-    fun <T, O> PCollection<T>.count(mode : PTransform<PCollection<T>, PCollection<O>>) : PCollection<O> {
-        return this.apply(mode)
-    }
-
-    fun <T> PCollection<T>.filter(by: (T) -> Boolean) : PCollection<T> {
-        return this.apply(Filter.by( SerializableFunction { by(it) }))
-    }
-
-    fun <I, O> PCollection<I>.map(into: TypeDescriptor<O>, via: (I) -> O): PCollection<O> {
-        return this.apply(
-            MapElements
-                .into(into)
-                .via(SerializableFunction { via(it) })
-        )
-    }
 }
